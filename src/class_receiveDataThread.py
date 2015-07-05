@@ -174,7 +174,7 @@ class receiveDataThread(threading.Thread):
                 elif command == 'object':
                     self.recobject(payload)
                 elif command == 'ping':
-                    self.sendpong(payload)
+                    self.recping(payload)
                 #elif command == 'pong':
                 #    pass
         except varintDecodeError as e:
@@ -233,9 +233,9 @@ class receiveDataThread(threading.Thread):
         self.processData()
 
 
-    def sendpong(self):
+    def recping(self):
         with shared.printLock:
-            print 'Sending pong'
+            print 'Sending pong in reply to ping'
         self.sendDataThreadQueue.put((0, 'sendRawData', shared.CreatePacket('pong')))
 
 

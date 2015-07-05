@@ -583,77 +583,25 @@ class receiveDataThread(threading.Thread):
     # peer (with the full exchange of version and verack 
     # messages).
     def sendaddr(self):
-        addrsInMyStream = {}
-        addrsInChildStreamLeft = {}
-        addrsInChildStreamRight = {}
         # print 'knownNodes', shared.knownNodes
 
         # We are going to share a maximum number of 1000 addrs with our peer.
         # 500 from this stream, 250 from the left child stream, and 250 from
         # the right child stream.
+        peerSet = set()
         with shared.knownNodesLock:
-            if len(shared.knownNodes[self.streamNumber]) > 0:
-                for i in range(500):
-                    peer, = random.sample(shared.knownNodes[self.streamNumber], 1)
-                    if isHostInPrivateIPRange(peer.host):
-                        continue
-                    addrsInMyStream[peer] = shared.knownNodes[
-                        self.streamNumber][peer]
-            if len(shared.knownNodes[self.streamNumber * 2]) > 0:
-                for i in range(250):
-                    peer, = random.sample(shared.knownNodes[
-                                          self.streamNumber * 2], 1)
-                    if isHostInPrivateIPRange(peer.host):
-                        continue
-                    addrsInChildStreamLeft[peer] = shared.knownNodes[
-                        self.streamNumber * 2][peer]
-            if len(shared.knownNodes[(self.streamNumber * 2) + 1]) > 0:
-                for i in range(250):
-                    peer, = random.sample(shared.knownNodes[
-                                          (self.streamNumber * 2) + 1], 1)
-                    if isHostInPrivateIPRange(peer.host):
-                        continue
-                    addrsInChildStreamRight[peer] = shared.knownNodes[
-                        (self.streamNumber * 2) + 1][peer]
-        numberOfAddressesInAddrMessage = 0
-        payload = ''
-        # print 'addrsInMyStream.items()', addrsInMyStream.items()
-        for (HOST, PORT), value in addrsInMyStream.items():
-            timeLastReceivedMessageFromThisNode = value
-            if timeLastReceivedMessageFromThisNode > (int(time.time()) - shared.maximumAgeOfNodesThatIAdvertiseToOthers):  # If it is younger than 3 hours old..
-                numberOfAddressesInAddrMessage += 1
-                payload += pack(
-                    '>Q', timeLastReceivedMessageFromThisNode)  # 64-bit time
-                payload += pack('>I', self.streamNumber)
-                payload += pack(
-                    '>q', 1)  # service bit flags offered by this node
-                payload += shared.encodeHost(HOST)
-                payload += pack('>H', PORT)  # remote port
-        for (HOST, PORT), value in addrsInChildStreamLeft.items():
-            timeLastReceivedMessageFromThisNode = value
-            if timeLastReceivedMessageFromThisNode > (int(time.time()) - shared.maximumAgeOfNodesThatIAdvertiseToOthers):  # If it is younger than 3 hours old..
-                numberOfAddressesInAddrMessage += 1
-                payload += pack(
-                    '>Q', timeLastReceivedMessageFromThisNode)  # 64-bit time
-                payload += pack('>I', self.streamNumber * 2)
-                payload += pack(
-                    '>q', 1)  # service bit flags offered by this node
-                payload += shared.encodeHost(HOST)
-                payload += pack('>H', PORT)  # remote port
-        for (HOST, PORT), value in addrsInChildStreamRight.items():
-            timeLastReceivedMessageFromThisNode = value
-            if timeLastReceivedMessageFromThisNode > (int(time.time()) - shared.maximumAgeOfNodesThatIAdvertiseToOthers):  # If it is younger than 3 hours old..
-                numberOfAddressesInAddrMessage += 1
-                payload += pack(
-                    '>Q', timeLastReceivedMessageFromThisNode)  # 64-bit time
-                payload += pack('>I', (self.streamNumber * 2) + 1)
-                payload += pack(
-                    '>q', 1)  # service bit flags offered by this node
-                payload += shared.encodeHost(HOST)
-                payload += pack('>H', PORT)  # remote port
+            for streamNumber, maximum in (
+                    (self.streamNumber, 500),
+                    (self.streamNumber * 2, 250),
+                    ((self.streamNumber * 2) + 1, 250)):
+                if len(shared.knownNodes[streamNumber]) > 0:
+                    for i in range(maximum):
+                        peer, = random.sample(shared.knownNodes[streamNumber], 1)
+                        if isHostInPrivateIPRange(peer.host):
+                            continue
+                        peerSet.add((shared.knownNodes[streamNumber][peer], streamNumber, 1, peer.host, peer.port))
 
-        payload = encodeVarint(numberOfAddressesInAddrMessage) + payload
-        self.sendDataThreadQueue.put((0, 'sendRawData', shared.CreatePacket('addr', payload)))
+        self.sendDataThreadQueue.put((0, 'sendaddr', peerSet))
 
 
     # We have received a version message
